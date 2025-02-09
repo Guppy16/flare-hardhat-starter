@@ -1,8 +1,8 @@
-import { artifacts, ethers, run } from "hardhat";
+import { artifacts, run } from "hardhat";
 import { StarWarsCharacterListInstance } from "../typechain-types";
 
 const StarWarsCharacterList = artifacts.require("StarWarsCharacterList");
-const FDCHub = artifacts.require("@flarenetwork/flare-periphery-contracts/coston/IFdcHub.sol:IFdcHub");
+const FDCHub = artifacts.require("@flarenetwork/flare-periphery-contracts/coston2/IFdcHub.sol:IFdcHub");
 
 // Simple hex encoding
 function toHex(data) {
@@ -13,13 +13,21 @@ function toHex(data) {
     return result.padEnd(64, "0");
 }
 
-const { JQ_VERIFIER_URL_TESTNET, JQ_API_KEY, VERIFIER_URL_TESTNET, VERIFIER_PUBLIC_API_KEY_TESTNET, DA_LAYER_URL_COSTON } = process.env;
+const { JQ_VERIFIER_URL_TESTNET, JQ_API_KEY, VERIFIER_URL_TESTNET, VERIFIER_PUBLIC_API_KEY_TESTNET, DA_LAYER_URL_COSTON2, NYT_API_KEY, ADAPT_API } = process.env;
 
 const TX_ID =
     "0xae295f8075754f795142e3238afa132cd32930f871d21ccede22bbe80ae31f73";
 
 // const STAR_WARS_LIST_ADDRESS = "0xD7e76b28152aADC59D8C857a1645Ea1552F7f7fB"; // coston
-const STAR_WARS_LIST_ADDRESS = "0x531B6E1e924aa8b431D1cacF517468DF2c3faa4F"; // coston2
+// const STAR_WARS_LIST_ADDRESS = "0x531B6E1e924aa8b431D1cacF517468DF2c3faa4F"; // coston2
+// const STAR_WARS_LIST_ADDRESS = "0xD86a1FF012E40C415B623e0EC01d88C899C57732" // coston2 Guppy
+// const STAR_WARS_LIST_ADDRESS = "0x8f07eB7B1BEd797dce7C1EC846BF6A035AB99FE9"
+
+// const STAR_WARS_LIST_ADDRESS = "0x29506A1ff1e8A195D26F98103f4B623F1ab1D8b8"
+const STAR_WARS_LIST_ADDRESS = "0xd1F1BE685Fd67F8561BeC1281C714c6a14Eb6baD"
+
+// Print NYT API KEY
+console.log("NYT API KEY:", NYT_API_KEY);
 
 async function deployMainList() {
     const list: StarWarsCharacterListInstance = await StarWarsCharacterList.new();
@@ -80,17 +88,179 @@ async function prepareRequest() {
     return data;
 }
 
-
 // prepareRequest().then((data) => {
 //     console.log("Prepared request:", data);
 //     process.exit(0);
 // });
 
-const firstVotingRoundStartTs = 1658429955;
+// Add parameter for year, month
+async function prepareNYTDocumentsRequest(year: number, month: number) {
+    const attestationType = "0x" + toHex("IJsonApi");
+    const sourceType = "0x" + toHex("WEB2");
+    const url = `https://api.nytimes.com/svc/archive/v1/${year}/${month}.json?api-key=${NYT_API_KEY}`;
+
+    // print url
+    console.log("URL:", url);
+
+    const requestData = {
+        "attestationType": attestationType,
+        "sourceId": sourceType,
+        "requestBody": {
+            "url": url,
+            "postprocessJq": `[
+                .response.docs[] | {
+                    webUrl: .web_url,
+                    id: ._id
+                }
+            ]`,
+            "abi_signature": `
+            {\"components\": [
+                {\"internalType\": \"string\",\"name\": \"webUrl\",\"type\": \"string\"},
+                {\"internalType\": \"string\",\"name\": \"id\",\"type\": \"string\"}
+            ],
+            \"name\": \"NYTDocument\",\"type\": \"tuple[]\"}`
+        }
+    }
+
+    const response = await fetch(
+        `${JQ_VERIFIER_URL_TESTNET}JsonApi/prepareRequest`,
+        {
+            method: "POST",
+            headers: {
+                "X-API-KEY": JQ_API_KEY,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(requestData),
+        },
+    );
+    const data = await response.json();
+    console.log("Prepared request:", data);
+    return data;
+}
+
+
+// prepareNYTDocumentsRequest(2020, 1).then((data) => {
+//     // console.log("Prepared request:", data);
+//     process.exit(0);
+// });
+
+async function prepareAdaptRequest(yyyy_mm_dd: string) {
+    const attestationType = "0x" + toHex("IJsonApi");
+    const sourceType = "0x" + toHex("WEB2");
+    const url = `${ADAPT_API}?date_string=${yyyy_mm_dd}`;
+
+    // print url
+    console.log("URL:", url);
+
+    const requestData = {
+        "attestationType": attestationType,
+        "sourceId": sourceType,
+        "requestBody": {
+            "url": url,
+            "postprocessJq": `
+            {
+                categories: [ .[] .event_category ]
+            }
+            `,
+            "abi_signature": `
+            {
+                \"components\": [
+                    {
+                        \"internalType\": \"string[]\",
+                        \"name\": \"categories\",
+                        \"type\": \"string[]\"
+                    }
+                ],
+                \"name\": \"EventCategory\",
+                \"type\": \"tuple\"
+            }`
+        }
+    }
+
+    const response = await fetch(
+        `${JQ_VERIFIER_URL_TESTNET}JsonApi/prepareRequest`,
+        {
+            method: "POST",
+            headers: {
+                "X-API-KEY": JQ_API_KEY,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(requestData),
+        },
+    );
+
+    const data = await response.json();
+    console.log("Prepared request:", data);
+    return data;
+}
+
+// prepareAdaptRequest("2021-01-01").then((data) => {
+//     // console.log("Prepared request:", data);
+//     process.exit(0);
+// });
+
+
+async function prepareEventsRequest(yyyy_mm_dd: string) {
+    const attestationType = "0x" + toHex("IJsonApi");
+    const sourceType = "0x" + toHex("WEB2");
+    const url = `${ADAPT_API}?date_string=${yyyy_mm_dd}`;
+
+    // print url
+    console.log("URL:", url);
+
+    const requestData = {
+        "attestationType": attestationType,
+        "sourceId": sourceType,
+        "requestBody": {
+            "url": url,
+            "postprocessJq": `{
+                category: .event_category,
+                date: .date,
+            }`,
+            "abi_signature": `
+            {\"components\": [
+            
+                {\"internalType\": \"string\",\"name\": \"category\",\"type\": \"string\"},
+                {\"internalType\": \"string\",\"name\": \"date\",\"type\": \"string\"}
+                ],
+            \"name\": \"Event\",\"type\": \"tuple\"}`
+        }
+    };
+
+    const response = await fetch(
+        `${JQ_VERIFIER_URL_TESTNET}JsonApi/prepareRequest`,
+        {
+            method: "POST",
+            headers: {
+                "X-API-KEY": JQ_API_KEY,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(requestData),
+        },
+    );
+    const data = await response.json();
+    console.log("Prepared request:", data);
+    return data;
+
+}
+
+// HERE
+// prepareEventsRequest("2024-01-01").then((data) => {
+//     // console.log("Prepared request:", data);
+//     process.exit(0);
+// });
+
+
+const firstVotingRoundStartTs = 1658429955 + 45;
 const votingEpochDurationSeconds = 90;
 
+const date = "2022-08-12";
+
 async function submitRequest() {
-    const requestData = await prepareRequest();
+    // const requestData = await prepareRequest();
+    // const requestData = await prepareNYTDocumentsRequest(2020, 1);
+    // const requestData = await prepareAdaptRequest("2021-01-01");
+    const requestData = await prepareEventsRequest(date);
 
     const starWarsList: StarWarsCharacterListInstance = await StarWarsCharacterList.at(STAR_WARS_LIST_ADDRESS);
 
@@ -112,10 +282,12 @@ async function submitRequest() {
         (block!.timestamp - firstVotingRoundStartTs) / votingEpochDurationSeconds,
     );
     console.log(
-        `Check round progress at: https://coston-systems-explorer.flare.rocks/voting-epoch/${roundId}?tab=fdc`,
+        `Check round progress at: https://coston2-systems-explorer.flare.rocks/voting-epoch/${roundId}?tab=fdc`,
     );
     return roundId;
 }
+
+
 
 // submitRequest().then((data) => {
 //     console.log("Submitted request:", data);
@@ -123,12 +295,19 @@ async function submitRequest() {
 // });
 
 
-const TARGET_ROUND_ID = 894447; // 0
+// const TARGET_ROUND_ID = 895505; // 0
+// const TARGET_ROUND_ID = 895854; // 1
+// const TARGET_ROUND_ID = 895861; // 2
+// const TARGET_ROUND_ID = 895924; // 3
+const TARGET_ROUND_ID = 896247; // 4
 
 async function getProof(roundId: number) {
-    const request = await prepareRequest();
+    // const request = await prepareRequest();
+    // const request = await prepareNYTDocumentsRequest(2020, 1);
+    // const request = await prepareAdaptRequest("2021-01-01");
+    const request = await prepareEventsRequest(date);
     const proofAndData = await fetch(
-        `${DA_LAYER_URL_COSTON}fdc/get-proof-round-id-bytes`,
+        `${DA_LAYER_URL_COSTON2}fdc/get-proof-round-id-bytes`,
         {
             method: "POST",
             headers: {
@@ -160,12 +339,14 @@ async function submitProof() {
     console.log(dataAndProof);
     const starWarsList = await StarWarsCharacterList.at(STAR_WARS_LIST_ADDRESS);
 
-    const tx = await starWarsList.addCharacter({
+    const tx = await starWarsList.addNewsEvent({
         merkleProof: dataAndProof.proof,
         data: dataAndProof.response,
     });
     console.log(tx.tx);
-    console.log(await starWarsList.getAllCharacters());
+    // console.log(await starWarsList.getAllCharacters());
+    console.log(await starWarsList.getAllNewsEvents());
+    // console.log(await )
 }
 
 

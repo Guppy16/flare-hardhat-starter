@@ -1,8 +1,7 @@
 import "@nomicfoundation/hardhat-verify";
 import { artifacts, ethers, run } from 'hardhat';
-import { SimpleFtsoExampleContract } from '../typechain-types';
-const SimpleFtsoExample: SimpleFtsoExampleContract = artifacts.require('SimpleFtsoExample');
-
+import { StarWarsCharacterListContract } from '../typechain-types';
+const StarWarsCharacterList: StarWarsCharacterListContract = artifacts.require('StarWarsCharacterList');
 
 async function main() {
     const [deployer] = await ethers.getSigners();
@@ -10,12 +9,12 @@ async function main() {
     console.log("Deploying contracts with the account:", deployer.address);
 
     const args: any[] = []
-    const simpleFtsoExample = await SimpleFtsoExample.new(...args);
-    console.log("SimpleFtsoExample deployed to:", simpleFtsoExample.address);
+    const starWarsCharacterList = await StarWarsCharacterList.new(...args);
+    console.log("StarWarsCharacterList deployed to:", starWarsCharacterList.address);
     try {
 
         const result = await run("verify:verify", {
-            address: simpleFtsoExample.address,
+            address: starWarsCharacterList.address,
             constructorArguments: args,
         })
 
@@ -23,7 +22,10 @@ async function main() {
     } catch (e: any) {
         console.log(e.message)
     }
-    console.log("Deployed contract at:", simpleFtsoExample.address)
+    console.log("Deployed contract at:", starWarsCharacterList.address)
 
 }
-main().then(() => process.exit(0))
+main().then(() => process.exit(0)).catch((error) => {
+    console.error(error);
+    process.exit(1);
+});
